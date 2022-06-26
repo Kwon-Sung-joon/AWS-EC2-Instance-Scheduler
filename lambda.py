@@ -9,55 +9,66 @@ import time
 Create by sj kwon
 Email kofdx7@gmail.com
 '''
-
-class Rds:
-	def __init__(self,rds_identifier):
-		self.rds_client=boto3.client('rds');
-		self.rds_identifier=rds_identifier;
+class ec2:
+	def __init__(self,ec2_instance_id):
+		self.ec2_client=boto3.client('ec2');
+		self.ec2_instance_id=ec2_instance_id;
 		
-	def get_rds_status(self):
-		response = self.rds_client.describe_db_instances(DBInstanceIdentifier=self.rds_identifier);
-		rds_instances=response.get("DBInstances")
-		rds=rds_instances.pop(0)
-		rds_status=rds.get("DBInstanceStatus")
-		return rds_status
+	def detach_ec2_from_asg(self):
+        #need asg name
+        response = client.detach_instances(
+            InstanceIds=[
+             'string',
+            ],
+            AutoScalingGroupName='string',
+            ShouldDecrementDesiredCapacity=True
+        )
+		return ec2_status
 
-	def schedule_rds(self):
-		rds_status=self.get_rds_status();
-		cron_pattern=self.get_start_pattern(rds_status) if rds_status=="stopping" or rds_status=="available" else self.get_stop_pattern(rds_status);
+	def attach_ec2_from_asg(self):
+        #need asg name        
+        response = client.attach_instances(
+            InstanceIds=[
+            'string',
+            ],
+            AutoScalingGroupName='string'
+        )
+
+	def schedule_ec2(self):
+		ec2_status=self.get_ec2_status();
+		cron_pattern=self.get_start_pattern(ec2_status) if ec2_status=="stopping" or ec2_status=="available" else self.get_stop_pattern(ec2_status);
 		return cron_pattern
 		
-	def stop_rds(self):
-		rds_snapshot = self.rds_identifier  + datetime.datetime.now().strftime("-%Y-%m-%d-%H%M").strip()
-		response = self.rds_client.stop_db_instance(
-	    		DBInstanceIdentifier=self.rds_identifier
+	def stop_ec2(self):
+		response = self.ec2_client.stop_instances(
+            InstanceIds=[
+                'string',
+            ]
 		)
-		print("#  SUCCESS RDS STOP")
+		print("#  SUCCESS ec2 STOP")
 		
-	def start_rds(self):
-		response = self.rds_client.start_db_instance(
-    			DBInstanceIdentifier=self.rds_identifier
-			)
-		print("#  SUCCESS RDS START")	
+	def start_ec2(self):
+		response = self.ec2_client.start_instances(
+            InstanceIds=[
+                'string',
+            ]
+		)
+		print("#  SUCCESS ec2 START")	
 
-	def get_start_pattern(self,rds_status):
-		if rds_status=="available":
-			print("# STOP RDS ...! ")
-			self.stop_rds();
-		#set your time for rds start. 
-	#default is before 3 hours after 7 days
-		_datetime=datetime.datetime.today()+datetime.timedelta(days=7)-datetime.timedelta(hours=3)
-		cron_pattern=get_cron_pattern(_datetime);	
+	def get_start_pattern(self,ec2_status):
+
+		cron_pattern="cron(0 0 ? * 2-6 *)"	
 		return ("START",cron_pattern)
-		
-	def get_stop_pattern(self,rds_status):
-		if rds_status == "stopped":
-			print("# START RDS ...! ")
-			self.start_rds();
-		#set your time for rds stop. 
+
+
+	def get_stop_pattern(self,ec2_status):
+		if ec2_status == "stopped":
+			print("# START ec2 ...! ")
+			self.start_ec2();
+		#set your time for ec2 stop. 
 		#default is 1 hours.
 		_datetime=datetime.datetime.today()+datetime.timedelta(minutes=15)
-		cron_pattern=get_cron_pattern(_datetime);
+		cron_pattern="cron(0 12 ? * 2-6 *)"
 		return ("STOP",cron_pattern)
 
 
@@ -73,7 +84,7 @@ class EventBridge:
 			ScheduleExpression=schedule[1],
 			State='ENABLED'
 		)
-		print("#  PUT RULE RDS "+ schedule[0]+":" + self.events_rule_name + "[" + schedule[1] + "]")
+		print("#  PUT RULE ec2 "+ schedule[0]+":" + self.events_rule_name + "[" + schedule[1] + "]")
 		
 
 
@@ -84,15 +95,29 @@ def get_cron_pattern(_datetime):
 	return cron_pattern
 
 
-
-
 def lambda_handler(event, context):
 	# TODO implement
 
-	rds=Rds(os.getenv('RDS_IDENTIFIER'))
-	eb=EventBridge(os.getenv('EVENT_RULE'))
 
-	schedule=rds.schedule_rds();
+    # ec2 list .... with asg 
+    # instanceIds 
+    # asg = 
+     
+    # ec2 list ... InstanceIds=[ 'i-xxx','i-xxx],
+    
+    #1. ec2 start evnet  or ec2 stop event
+    #2. detach ec2 from asg... or  attatch ec2 to asg...
+    #3. stop ec2 ... or start ec2 ...
+    #4. put rule next time ...
+
+    
+
+    
+
+	ec2=ec2(os.getenv('ec2_instance_id'))
+	eb=EventBridge("ec2-scheduler-event")
+
+	schedule=ec2.schedule_ec2();
 	eb.put_rule(schedule);
 	
 	return {
